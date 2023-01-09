@@ -36,7 +36,7 @@ struct lock {
 	int screen;
 	Window root, win;
 	Pixmap pmap;
-	Pixmap bgmap[NUMCOLS];
+	Pixmap bgmap[NUMCOLS + 1];
 	unsigned long colors[NUMCOLS];
 };
 
@@ -166,8 +166,17 @@ readpw(Display *dpy, struct xrandr *rr, struct lock **locks, int nscreens,
 					errno = 0;
 					if (!(inputhash = crypt(passwd, hash)))
 						fprintf(stderr, "slock: crypt: %s\n", strerror(errno));
-					else
+					else{
 						running = !!strcmp(inputhash, hash);
+						// running == 0 -> password accept !
+						if (running == 0) {
+							for (screen = 0; screen < nscreens; screen++) {
+								if (locks[screen]->bgmap[NUMCOLS])
+									XSetWindowBackgroundPixmap(dpy, locks[screen]->win, locks[screen]->bgmap[NUMCOLS]);
+								XClearWindow(dpy, locks[screen]->win);
+							}
+						}
+					}
 					if (running) {
 						XBell(dpy, 100);
 						failure = 1;
@@ -240,7 +249,7 @@ lockscreen(Display *dpy, struct xrandr *rr, int screen)
 	lock->screen = screen;
 	lock->root = RootWindow(dpy, lock->screen);
 	int j;
-	for (j = 0; j < NUMCOLS; j++){
+	for (j = 0; j < NUMCOLS + 1; j++){
 		/* Load picture */
 		Imlib_Image buffer = imlib_load_image(background_image[j]);
 		imlib_context_set_image(buffer);

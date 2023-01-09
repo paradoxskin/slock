@@ -12,8 +12,9 @@ static const char *colorname[NUMCOLS] = {
 static const int failonclear = 1;
 
 /* Background image path, should be available to the user above */
-static const char* background_image[NUMCOLS] = {
+static const char* background_image[NUMCOLS + 1] = {
 	"/home/paradoxd/Pictures/.wife/0.png",
 	"/home/paradoxd/Pictures/.wife/1.png",
 	"/home/paradoxd/Pictures/.wife/2.png",
+	"/home/paradoxd/Pictures/.wife/l4.png",
 };
