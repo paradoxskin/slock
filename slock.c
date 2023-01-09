@@ -32,11 +32,13 @@ enum {
 	NUMCOLS
 };
 
+#include "config.h"
+
 struct lock {
 	int screen;
 	Window root, win;
 	Pixmap pmap;
-	Pixmap bgmap[NUMCOLS + 1];
+	Pixmap bgmap[NUMCOLS + final_num];
 	unsigned long colors[NUMCOLS];
 };
 
@@ -46,7 +48,6 @@ struct xrandr {
 	int errbase;
 };
 
-#include "config.h"
 
 Imlib_Image image;
 
@@ -175,6 +176,8 @@ readpw(Display *dpy, struct xrandr *rr, struct lock **locks, int nscreens,
 									XSetWindowBackgroundPixmap(dpy, locks[screen]->win, locks[screen]->bgmap[NUMCOLS]);
 								XClearWindow(dpy, locks[screen]->win);
 							}
+							XNextEvent(dpy, &ev);
+							sleep(0.6);
 						}
 					}
 					if (running) {
@@ -187,10 +190,13 @@ readpw(Display *dpy, struct xrandr *rr, struct lock **locks, int nscreens,
 				case XK_Escape:
 					explicit_bzero(&passwd, sizeof(passwd));
 					len = 0;
+					failure = 0;
 					break;
 				case XK_BackSpace:
 					if (len)
 						passwd[--len] = '\0';
+					else
+						failure = 0;
 					break;
 				default:
 					if (num && !iscntrl((int)buf[0]) &&
@@ -249,7 +255,7 @@ lockscreen(Display *dpy, struct xrandr *rr, int screen)
 	lock->screen = screen;
 	lock->root = RootWindow(dpy, lock->screen);
 	int j;
-	for (j = 0; j < NUMCOLS + 1; j++){
+	for (j = 0; j < NUMCOLS + final_num; j++){
 		/* Load picture */
 		Imlib_Image buffer = imlib_load_image(background_image[j]);
 		imlib_context_set_image(buffer);
