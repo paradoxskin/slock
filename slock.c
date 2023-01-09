@@ -36,7 +36,7 @@ struct lock {
 	int screen;
 	Window root, win;
 	Pixmap pmap;
-	Pixmap bgmap;
+	Pixmap bgmap[NUMCOLS];
 	unsigned long colors[NUMCOLS];
 };
 
@@ -194,8 +194,8 @@ readpw(Display *dpy, struct xrandr *rr, struct lock **locks, int nscreens,
 			color = len ? INPUT : ((failure || failonclear) ? FAILED : INIT);
 			if (running && oldc != color) {
 				for (screen = 0; screen < nscreens; screen++) {
-					if (locks[screen]->bgmap)
-						XSetWindowBackgroundPixmap(dpy, locks[screen]->win, locks[screen]->bgmap);
+					if (locks[screen]->bgmap[color])
+						XSetWindowBackgroundPixmap(dpy, locks[screen]->win, locks[screen]->bgmap[color]);
 					else
 						XSetWindowBackground(dpy, locks[screen]->win, locks[screen]->colors[0]);
 					XClearWindow(dpy, locks[screen]->win);
@@ -239,16 +239,44 @@ lockscreen(Display *dpy, struct xrandr *rr, int screen)
 
 	lock->screen = screen;
 	lock->root = RootWindow(dpy, lock->screen);
+	int j;
+	for (j = 0; j < NUMCOLS; j++){
+		/* Load picture */
+		Imlib_Image buffer = imlib_load_image(background_image[j]);
+		imlib_context_set_image(buffer);
+		int background_image_width = imlib_image_get_width();
+		int background_image_height = imlib_image_get_height();
 
-	if(image)
-	{
-		lock->bgmap = XCreatePixmap(dpy, lock->root, DisplayWidth(dpy, lock->screen), DisplayHeight(dpy, lock->screen), DefaultDepth(dpy, lock->screen));
-		imlib_context_set_display(dpy);
-		imlib_context_set_visual(DefaultVisual(dpy, lock->screen));
-		imlib_context_set_colormap(DefaultColormap(dpy, lock->screen));
-		imlib_context_set_drawable(lock->bgmap);
-		imlib_render_image_on_drawable(0, 0);
+		/* Create an image to be rendered */
+		Screen *scr = ScreenOfDisplay(dpy, DefaultScreen(dpy));
+		image = imlib_create_image(scr->width, scr->height);
+		imlib_context_set_image(image);
+
+		/* Fill the image for every X monitor */
+		XRRMonitorInfo	*monitors;
+		int number_of_monitors;
+		monitors = XRRGetMonitors(dpy, RootWindow(dpy, XScreenNumberOfScreen(scr)), True, &number_of_monitors);
+
+		for (i = 0; i < number_of_monitors; i++) {
+			imlib_blend_image_onto_image(buffer, 0, 0, 0, background_image_width, background_image_height, monitors[i].x, monitors[i].y, monitors[i].width, monitors[i].height);
+		}
+
+		/* Clean up */
+		imlib_context_set_image(buffer);
 		imlib_free_image();
+		imlib_context_set_image(image);
+
+		if(image)
+		{
+			lock->bgmap[j] = XCreatePixmap(dpy, lock->root, DisplayWidth(dpy, lock->screen), DisplayHeight(dpy, lock->screen), DefaultDepth(dpy, lock->screen));
+			imlib_context_set_display(dpy);
+			imlib_context_set_visual(DefaultVisual(dpy, lock->screen));
+			imlib_context_set_colormap(DefaultColormap(dpy, lock->screen));
+			imlib_context_set_drawable(lock->bgmap[j]);
+			imlib_render_image_on_drawable(0, 0);
+			imlib_free_image();
+		}
+
 	}
 
 	for (i = 0; i < NUMCOLS; i++) {
@@ -267,8 +295,8 @@ lockscreen(Display *dpy, struct xrandr *rr, int screen)
 			CopyFromParent,
 			DefaultVisual(dpy, lock->screen),
 			CWOverrideRedirect | CWBackPixel, &wa);
-	if(lock->bgmap)
-		XSetWindowBackgroundPixmap(dpy, lock->win, lock->bgmap);
+	if(lock->bgmap[0])
+		XSetWindowBackgroundPixmap(dpy, lock->win, lock->bgmap[0]);
 	lock->pmap = XCreateBitmapFromData(dpy, lock->win, curs, 8, 8);
 	invisible = XCreatePixmapCursor(dpy, lock->pmap, lock->pmap,
 			&color, &color, 0, 0);
@@ -372,32 +400,6 @@ main(int argc, char **argv) {
 		die("slock: setgid: %s\n", strerror(errno));
 	if (setuid(duid) < 0)
 		die("slock: setuid: %s\n", strerror(errno));
-
-	/* Load picture */
-	Imlib_Image buffer = imlib_load_image(background_image);
-	imlib_context_set_image(buffer);
-	int background_image_width = imlib_image_get_width();
-	int background_image_height = imlib_image_get_height();
-
-	/* Create an image to be rendered */
-	Screen *scr = ScreenOfDisplay(dpy, DefaultScreen(dpy));
-	image = imlib_create_image(scr->width, scr->height);
-	imlib_context_set_image(image);
-
-	/* Fill the image for every X monitor */
-	XRRMonitorInfo	*monitors;
-	int number_of_monitors;
-	monitors = XRRGetMonitors(dpy, RootWindow(dpy, XScreenNumberOfScreen(scr)), True, &number_of_monitors);
-
-	int i;
-	for (i = 0; i < number_of_monitors; i++) {
-		imlib_blend_image_onto_image(buffer, 0, 0, 0, background_image_width, background_image_height, monitors[i].x, monitors[i].y, monitors[i].width, monitors[i].height);
-	}
-
-	/* Clean up */
-	imlib_context_set_image(buffer);
-	imlib_free_image();
-	imlib_context_set_image(image);
 
 	/* check for Xrandr support */
 	rr.active = XRRQueryExtension(dpy, &rr.evbase, &rr.errbase);
