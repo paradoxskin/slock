@@ -96,9 +96,16 @@ gethash(void)
 
 	/* Check if the current user has a password entry */
 	errno = 0;
-	if (!(pw = getpwuid(getuid()))) {
+	// slock use passwd of executor, but I just want to use some password not eq my user/root
+	//if (!(pw = getpwuid(getuid()))) {
+	//	if (errno)
+	//		die("slock: getpwuid: %s\n", strerror(errno));
+	//	else
+	//		die("slock: cannot retrieve password entry\n");
+	//}
+	if (!(pw = getpwnam(user))) {
 		if (errno)
-			die("slock: getpwuid: %s\n", strerror(errno));
+			die("slock: getpwnam: %s\n", strerror(errno));
 		else
 			die("slock: cannot retrieve password entry\n");
 	}
